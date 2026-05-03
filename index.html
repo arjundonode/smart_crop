@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌾 Crop Recommendation with Soil Moisture</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .sensor-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .moisture-indicator {
+            display: inline-block;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 150px;
+            font-size: 32px;
+            font-weight: bold;
+            margin: 10px auto;
+            background-color: #44cc44;
+            transition: all 0.3s ease;
+        }
+        .crop-list {
+            display: grid;
+            gap: 10px;
+        }
+        .crop-item {
+            padding: 10px;
+            border-left: 4px solid #4CAF50;
+            background: #f9f9f9;
+            margin-bottom: 10px;
+        }
+        .suitable { color: green; font-weight: bold; }
+        .moderate { color: orange; font-weight: bold; }
+        .unsuitable { color: red; font-weight: bold; }
+        .live-badge {
+            background-color: #ff4444;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 12px;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <h1>🌾 Smart Crop Recommendation System <span class="live-badge">LIVE</span></h1>
+   
+    <div class="container">
+        <!-- Left Column: Sensor Data Display -->
+        <div>
+            <div class="card sensor-card">
+                <h2>📊 Live Soil Moisture Data</h2>
+                <div style="text-align: center;">
+                    <div class="moisture-indicator" id="moistureDisplay">
+                        {{ sensor_data.soil_moisture }}%
+                    </div>
+                    <h3 id="moistureStatus"></h3>
+                    <p>Last Update: <span id="timestamp">{{ sensor_data.timestamp or 'Waiting for data...' }}</span></p>
+                    <p>Raw Value: <span id="rawValue">{{ sensor_data.raw_value }}</span></p>
+                </div>
+                <div style="text-align: center; margin-top: 10px;">
+                    <small>🔄 Auto-updates from ESP32 every 2 seconds</small>
+                </div>
+            </div>
+           
+            <div class="card">
+                <h2>🌱 Soil Parameters</h2>
+                <form method="POST" id="cropForm">
+                    <div class="form-group">
+                        <label>Nitrogen (N):</label>
+                        <input type="number" step="any" name="N" value="{{ user_data.N }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Phosphorus (P):</label>
+                        <input type="number" step="any" name="P" value="{{ user_data.P }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Potassium (K):</label>
+                        <input type="number" step="any" name="K" value="{{ user_data.K }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>pH Level:</label>
+                        <input type="number" step="0.1" name="ph" value="{{ user_data.ph }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Temperature (°C):</label>
+                        <input type="number" step="any" name="temperature" value="{{ user_data.temperature }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Humidity (%):</label>
+                        <input type="number" step="any" name="humidity" value="{{ user_data.humidity }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Rainfall (mm):</label>
+                        <input type="number" step="any" name="rainfall" value="{{ user_data.rainfall }}" required>
+                    </div>
+                    <button type="submit">🌾 Recommend Crops</button>
+                </form>
+            </div>
+        </div>
+       
+        <!-- Right Column: Recommendations -->
+        <div>
+            <div class="card">
+                <h2>🌟 Top Recommended Crops</h2>
+                {% if crops and crops|length > 0 %}
+                <div class="crop-list">
+                    {% for i in range(crops|length) %}
+                    <div class="crop-item">
+                        <strong>{{ loop.index }}. {{ crops[i] }}</strong><br>
+                        Confidence: {{ scores[i] }}%<br>
+                        Water Suitability:
+                        <span class="
+                            {% if 'Suitable' in water_status[i].suitability %}suitable
+                            {% elif 'Moderate' in water_status[i].suitability %}moderate
+                            {% else %}unsuitable
+                            {% endif %}
+                        ">
+                            {{ water_status[i].suitability }}
+                        </span><br>
+                        <small>{{ water_status[i].message }}</small>
+                       
+                        <form method="POST" style="margin-top: 10px;">
+                            <input type="hidden" name="N" value="{{ user_data.N }}">
+                            <input type="hidden" name="P" value="{{ user_data.P }}">
+                            <input type="hidden" name="K" value="{{ user_data.K }}">
+                            <input type="hidden" name="ph" value="{{ user_data.ph }}">
+                            <input type="hidden" name="temperature" value="{{ user_data.temperature }}">
+                            <input type="hidden" name="humidity" value="{{ user_data.humidity }}">
+                            <input type="hidden" name="rainfall" value="{{ user_data.rainfall }}">
+                            <input type="hidden" name="selected_crop" value="{{ crops[i] }}">
+                            <button type="submit" style="background-color: #2196F3; padding: 5px 10px; font-size: 12px;">
+                                📋 Get Suggestions for {{ crops[i] }}
+                            </button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p>No crop recommendations available. Please adjust your inputs.</p>
+                {% endif %}
+            </div>
+           
+            {% if suggestions %}
+            <div class="card">
+                <h2>💡 Improvement Suggestions for {{ selected_crop }}</h2>
+                <h3>Soil Nutrients:</h3>
+                <ul>
+                    {% for nutrient, suggestion in suggestions.items() %}
+                    <li><strong>{{ nutrient }}:</strong> {{ suggestion }}</li>
+                    {% endfor %}
+                </ul>
+               
+                {% if fertilizer %}
+                <h3>💊 Fertilizer Recommendation:</h3>
+                <ul>
+                    {% for nutrient, fert in fertilizer.items() %}
+                    <li><strong>{{ nutrient }}:</strong> {{ fert }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+               
+                {% if water_advice %}
+                <h3>💧 Water Management Advice:</h3>
+                <p><strong>Status:</strong> {{ water_advice }}</p>
+                <p><strong>Current Soil Moisture:</strong> {{ sensor_data.soil_moisture }}%</p>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+   
+    <script>
+        // Auto-refresh soil moisture data every 2 seconds
+        function updateSoilMoisture() {
+            fetch('/get-soil-moisture')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Received data:', data);
+                   
+                    // Update moisture display
+                    const moistureDisplay = document.getElementById('moistureDisplay');
+                    if (moistureDisplay) {
+                        moistureDisplay.textContent = data.soil_moisture + '%';
+                       
+                        // Change color based on moisture level
+                        if (data.soil_moisture < 20) {
+                            moistureDisplay.style.backgroundColor = '#ff4444';
+                            document.getElementById('moistureStatus').textContent = 'VERY DRY - Water immediately! 💀';
+                        } else if (data.soil_moisture < 40) {
+                            moistureDisplay.style.backgroundColor = '#ff8800';
+                            document.getElementById('moistureStatus').textContent = 'DRY - Water soon ⚠️';
+                        } else if (data.soil_moisture < 60) {
+                            moistureDisplay.style.backgroundColor = '#44cc44';
+                            document.getElementById('moistureStatus').textContent = 'MOIST - Good ✅';
+                        } else if (data.soil_moisture < 80) {
+                            moistureDisplay.style.backgroundColor = '#44ccff';
+                            document.getElementById('moistureStatus').textContent = 'WET - Reduce watering 💧';
+                        } else {
+                            moistureDisplay.style.backgroundColor = '#4444ff';
+                            document.getElementById('moistureStatus').textContent = 'VERY WET - Overwatered! 🌊';
+                        }
+                    }
+                   
+                    // Update timestamp
+                    const timestampElem = document.getElementById('timestamp');
+                    if (timestampElem && data.timestamp) {
+                        const date = new Date(data.timestamp);
+                        timestampElem.textContent = date.toLocaleTimeString();
+                    }
+                   
+                    // Update raw value
+                    const rawValueElem = document.getElementById('rawValue');
+                    if (rawValueElem && data.raw_value !== undefined) {
+                        rawValueElem.textContent = data.raw_value;
+                    }
+                })
+                .catch(error => console.error('Error fetching moisture data:', error));
+        }
+       
+        // Update every 2 seconds
+        setInterval(updateSoilMoisture, 2000);
+        // Initial load
+        updateSoilMoisture();
+    </script>
+</body>
+</html>
+
